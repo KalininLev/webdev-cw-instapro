@@ -1,14 +1,12 @@
 import { USER_POSTS_PAGE, AUTH_PAGE } from "../routes.js";
 import { renderHeaderComponent } from "./header-component.js";
-import { posts, goToPage } from "../index.js";
-import { getUserFromLocalStorage } from "../helpers.js";
-import { addDislike, addLike } from "../api.js";
+import { posts, goToPage, user } from "../index.js";
+import { addDislike, addLike, deleteYourPost } from "../api.js";
 import { likes } from "./likes-names-components.js";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 
 export function renderPostsPageComponent({ appEl }) {
-
   function renderPosts() {
     let postHtml = posts
       .map((el) => {
@@ -37,8 +35,18 @@ export function renderPostsPageComponent({ appEl }) {
       ${el.description}
     </p>
     <p class="post-date">
-      ${formatDistanceToNow(new Date(el.createdAt), {locale: ru, addSuffix: true})}
+      ${formatDistanceToNow(new Date(el.createdAt), {
+        locale: ru,
+        addSuffix: true,
+      })}
     </p>
+    ${
+      !user
+        ? ""
+        : el.user.id === user._id
+        ? `<button data-post-id=${el.id} class="delete-post">Удалить пост</button>`
+        : ""
+    }    
   </li>`;
       })
       .join("");
@@ -64,7 +72,33 @@ export function renderPostsPageComponent({ appEl }) {
       element: document.querySelector(".header-container"),
     });
     initLikeListeners();
+    initDeleteButtonListeners();
   }
+
+  const initDeleteButtonListeners = () => {
+    if (user) {
+      const deleteButtons = document.querySelectorAll(".delete-post");
+      deleteButtons.forEach((deleteButton) => {
+        deleteButton.addEventListener("click", () => {
+          if (user) {
+            let postId = deleteButton.dataset.postId;
+            let index = posts.findIndex((el) => el.id === postId);
+            deleteYourPost({
+              id: postId,
+              token: `Bearer ${user.token}`,
+            })
+              .then(() => {
+                posts.splice(index, 1);
+                renderPosts();
+              })
+              .catch((error) => {
+                console.error(error.message);
+              });
+          }
+        });
+      });
+    }
+  };
 
   const initLikeListeners = () => {
     const likeButtons = document.querySelectorAll(".like-button");
@@ -72,18 +106,16 @@ export function renderPostsPageComponent({ appEl }) {
       likeButton.addEventListener("click", () => {
         let postId = likeButton.dataset.postId;
         let index = posts.findIndex((el) => el.id === postId);
-        if (localStorage.getItem("user")) {
+        if (user) {
           if (posts[index].isLiked) {
             addDislike({
-              token: `Bearer ${getUserFromLocalStorage().token}`,
+              token: `Bearer ${user.token}`,
               id: postId,
             })
               .then(() => {
                 posts[index].isLiked = false;
                 posts[index].likes.splice(
-                  posts[index].likes.findIndex(
-                    (el) => el.id === getUserFromLocalStorage()._id
-                  ),
+                  posts[index].likes.findIndex((el) => el.id === user._id),
                   1
                 );
                 renderPosts();
@@ -93,14 +125,14 @@ export function renderPostsPageComponent({ appEl }) {
               });
           } else {
             addLike({
-              token: `Bearer ${getUserFromLocalStorage().token}`,
+              token: `Bearer ${user.token}`,
               id: postId,
             })
               .then(() => {
                 posts[index].isLiked = true;
                 posts[index].likes.push({
-                  id: getUserFromLocalStorage()._id,
-                  name: getUserFromLocalStorage().name,
+                  id: user._id,
+                  name: user.name,
                 });
                 renderPosts();
               })
