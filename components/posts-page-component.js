@@ -102,7 +102,6 @@ export function renderPostsPageComponent({ appEl }) {
                   id: getUserFromLocalStorage()._id,
                   name: getUserFromLocalStorage().name,
                 });
-                console.log(posts[index]);
                 renderPosts();
               })
               .catch((error) => {
